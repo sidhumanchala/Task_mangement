@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Management System</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .task { margin: 10px 0; }
+        .task button { margin-left: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Task Management System</h1>
+    <form id="taskForm">
+        <input type="text" id="title" placeholder="Task Title" required>
+        <input type="text" id="description" placeholder="Description">
+        <input type="date" id="due_date" required>
+        <button type="submit">Add Task</button>
+    </form>
+
+    <h2>Filter Tasks</h2>
+    <select id="statusFilter">
+        <option value="">All</option>
+        <option value="Pending">Pending</option>
+        <option value="Completed">Completed</option>
+    </select>
+    <button id="filterButton">Filter</button>
+
+    <h2>Tasks</h2>
+    <div id="taskList"></div>
+
+    <script>
+        let editingTaskId = null; // Variable to hold the ID of the task being edited
+        const taskForm = document.getElementById('taskForm');
+        const taskList = document.getElementById('taskList');
+        const statusFilter = document.getElementById('statusFilter');
+        const filterButton = document.getElementById('filterButton');
+
+        taskForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const title = document.getElementById('title').value;
+            const description = document.getElementById('description').value;
+            const due_date = document.getElementById('due_date').value;
+
+            if (editingTaskId) {
+                // If editingTaskId is set, update the existing task
+                const response = await fetch(`/tasks/${editingTaskId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, description, due_date })
+                });
+                if (response.ok) {
+                    editingTaskId = null; // Reset the editing task ID
+                    taskForm.reset();
+                }
+            } else {
+                // Otherwise, create a new task
+                const response = await fetch('/tasks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, description, due_date })
+                });
+                if (response.ok) {
+                    taskForm.reset();
+                }
+            }
+            loadTasks();
+        });
+
+        async function loadTasks(status = '') {
+            const response = await fetch(`/tasks?status=${status}`);
+            const tasks = await response.json();
+            taskList.innerHTML = ''; // Clear the current task list
+
+            tasks.forEach(task => {
+                const taskDiv = document.createElement('div');
+                taskDiv.className = 'task';
+                taskDiv.innerHTML = `
+                    <strong>${task.title}</strong> - ${task.description} (Due: ${task.due_date}) 
+                    - Status: ${task.status}
+                    <button onclick="toggleTaskStatus(${task.id})">Toggle Status</button>
+                    <button onclick="deleteTask(${task.id})">Delete</button>
+                    <button onclick="editTask(${task.id}, '${task.title}', '${task.description}', '${task.due_date}')">Edit</button>
+                `;
+                taskList.appendChild(taskDiv);
+            });
+        }
+
+        async function toggleTaskStatus(id) {
+            const response = await fetch(`/tasks/${id}/status`, {
+                method: 'PATCH'
+            });
+            if (response.ok) {
+                loadTasks(statusFilter.value); // Reload tasks with the current filter
+            }
+        }
+
+        async function deleteTask(id) {
+            const response = await fetch(`/tasks/${id}`, {
+                method: 'DELETE'
+            });
+            if (response.ok) {
+                loadTasks(statusFilter.value); // Reload tasks with the current filter
+            }
+        }
+
+        function editTask(id, title, description, due_date) {
+            editingTaskId = id; // Set the ID of the task being edited
+            document.getElementById('title').value = title;
+            document.getElementById('description').value = description;
+            document.getElementById('due_date').value = due_date; // Set the due date in the form
+        }
+
+        filterButton.addEventListener('click', () => {
+            loadTasks(statusFilter.value); // Load tasks based on the selected filter
+        });
+
+        // Load all tasks on initial page load
+        loadTasks();
+    </script>
+</body>
+</html>
